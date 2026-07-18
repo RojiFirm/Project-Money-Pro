@@ -1,6 +1,6 @@
 /* ==========================================================
     PROJECT MONEY PRO
-    Transactions Module
+    Transactions Module (Google Sheets backend)
 ==========================================================*/
 
 /* ==========================================================
@@ -41,10 +41,13 @@ const filterAccount = document.getElementById("filterAccount");
 
 
 /* ==========================================================
-    STORAGE
+    GOOGLE SHEETS API CONFIG
+    Paste your Apps Script Web App URL below.
+    This ideally belongs in core/config.js, but it's here
+    for clarity — move it if you prefer.
 ==========================================================*/
 
-const STORAGE_KEY = "project_money_transactions";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 let transactions = [];
 
@@ -58,34 +61,23 @@ class Transaction {
     constructor(data){
 
         this.id = data.id;
-
         this.date = data.date;
-
         this.type = data.type;
-
         this.category = data.category;
-
         this.account = data.account;
-
         this.amount = Number(data.amount);
-
         this.taxType = data.taxType;
-
-        this.taxRate = data.taxRate;
-
-        this.taxAmount = data.taxAmount;
-
         this.additionalTax = data.additionalTax;
-
-        this.additionalRate = data.additionalRate;
-
-        this.additionalAmount = data.additionalAmount;
-
-        this.netAmount = data.netAmount;
-
+        this.additionalAmount = Number(data.additionalAmount) || 0;
+        this.taxAmount = Number(data.taxAmount) || 0;
+        this.timestamp = data.timestamp;
         this.description = data.description;
 
-        this.timestamp = data.timestamp;
+        // Net amount isn't stored in the sheet — derive it instead
+        this.netAmount =
+            data.netAmount !== undefined
+                ? Number(data.netAmount)
+                : this.amount - this.taxAmount - this.additionalAmount;
 
     }
 
@@ -93,29 +85,56 @@ class Transaction {
 
 
 /* ==========================================================
-    LOCAL STORAGE
+    REMOTE STORAGE (Google Sheets via Apps Script)
 ==========================================================*/
 
-function saveStorage(){
+async function loadFromSheet(){
 
-    localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(transactions)
-    );
+    const response = await fetch(API_URL);
+    const data = await response.json();
+
+    transactions = data.map(row => new Transaction(row));
 
 }
 
-function loadStorage(){
+async function addToSheet(transaction){
 
-    const data =
-        localStorage.getItem(STORAGE_KEY);
+    await fetch(API_URL, {
+        method: "POST",
+        // Apps Script doPost reads e.postData.contents regardless
+        // of content-type, so text/plain avoids CORS preflight issues.
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+            action: "add",
+            transaction: transaction
+        })
+    });
 
-    if(data){
+}
 
-        transactions =
-            JSON.parse(data);
+async function updateInSheet(transaction){
 
-    }
+    await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+            action: "update",
+            transaction: transaction
+        })
+    });
+
+}
+
+async function deleteFromSheet(id){
+
+    await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+            action: "delete",
+            id: id
+        })
+    });
 
 }
 
@@ -184,13 +203,9 @@ function calculateTax(
         additionalAmount;
 
     return{
-
         taxAmount,
-
         additionalAmount,
-
         netAmount
-
     };
 
 }
@@ -255,7 +270,7 @@ function closeModal(){
     SAVE TRANSACTION
 ==========================================================*/
 
-function saveTransaction() {
+async function saveTransaction() {
 
     const amount = Number(amountInput.value);
 
@@ -273,45 +288,29 @@ function saveTransaction() {
     const transaction = new Transaction({
 
         id: generateTransactionID(),
-
         date: dateInput.value,
-
         type: typeInput.value,
-
         category: categoryInput.value,
-
         account: accountInput.value,
-
         amount: amount,
-
         taxType: taxTypeInput.value,
-
         taxRate: taxRate,
-
         taxAmount: calculation.taxAmount,
-
         additionalTax: additionalTaxInput.value,
-
         additionalRate: additionalRate,
-
         additionalAmount: calculation.additionalAmount,
-
         netAmount: calculation.netAmount,
-
         description: descriptionInput.value,
-
         timestamp: getTimestamp()
 
     });
 
     transactions.push(transaction);
 
-    saveStorage();
+    await addToSheet(transaction);
 
     renderTransactions();
-
     updateSummaryCards();
-
     closeModal();
 
 }
@@ -344,45 +343,19 @@ function renderTransactions(list = transactions){
         const row = document.createElement("tr");
 
         row.innerHTML = `
-
             <td>${transaction.id}</td>
-
             <td>${transaction.date}</td>
-
             <td>${transaction.type}</td>
-
             <td>${transaction.category}</td>
-
             <td>${transaction.account}</td>
-
             <td>${formatCurrency(transaction.amount)}</td>
-
             <td>${formatCurrency(transaction.taxAmount)}</td>
-
             <td>${formatCurrency(transaction.netAmount)}</td>
-
             <td>${transaction.description}</td>
-
             <td>
-
-                <button
-                    class="edit-btn"
-                    onclick="editTransaction(${index})">
-
-                    Edit
-
-                </button>
-
-                <button
-                    class="delete-btn"
-                    onclick="deleteTransaction(${index})">
-
-                    Delete
-
-                </button>
-
+                <button class="edit-btn" onclick="editTransaction(${index})">Edit</button>
+                <button class="delete-btn" onclick="deleteTransaction(${index})">Delete</button>
             </td>
-
         `;
 
         transactionBody.appendChild(row);
@@ -399,9 +372,7 @@ function renderTransactions(list = transactions){
 function updateSummaryCards(){
 
     let income = 0;
-
     let expense = 0;
-
     let tax = 0;
 
     transactions.forEach(transaction=>{
@@ -409,30 +380,17 @@ function updateSummaryCards(){
         tax += transaction.taxAmount;
 
         if(transaction.type==="Income"){
-
             income += transaction.netAmount;
-
-        }
-
-        else{
-
+        } else {
             expense += transaction.amount;
-
         }
 
     });
 
-    totalIncome.textContent =
-        formatCurrency(income);
-
-    totalExpense.textContent =
-        formatCurrency(expense);
-
-    totalTax.textContent =
-        formatCurrency(tax);
-
-    transactionCount.textContent =
-        transactions.length;
+    totalIncome.textContent = formatCurrency(income);
+    totalExpense.textContent = formatCurrency(expense);
+    totalTax.textContent = formatCurrency(tax);
+    transactionCount.textContent = transactions.length;
 
 }
 
@@ -441,18 +399,17 @@ function updateSummaryCards(){
     DELETE
 ==========================================================*/
 
-function deleteTransaction(index){
+async function deleteTransaction(index){
 
-    if(!confirm(
-        "Delete this transaction?"
-    )) return;
+    if(!confirm("Delete this transaction?")) return;
+
+    const id = transactions[index].id;
 
     transactions.splice(index,1);
 
-    saveStorage();
+    await deleteFromSheet(id);
 
     renderTransactions();
-
     updateSummaryCards();
 
 }
@@ -473,29 +430,14 @@ function editTransaction(index){
 
     openModal();
 
-    dateInput.value =
-        transaction.date;
-
-    typeInput.value =
-        transaction.type;
-
-    categoryInput.value =
-        transaction.category;
-
-    accountInput.value =
-        transaction.account;
-
-    amountInput.value =
-        transaction.amount;
-
-    taxTypeInput.value =
-        transaction.taxType;
-
-    additionalTaxInput.value =
-        transaction.additionalTax;
-
-    descriptionInput.value =
-        transaction.description;
+    dateInput.value = transaction.date;
+    typeInput.value = transaction.type;
+    categoryInput.value = transaction.category;
+    accountInput.value = transaction.account;
+    amountInput.value = transaction.amount;
+    taxTypeInput.value = transaction.taxType;
+    additionalTaxInput.value = transaction.additionalTax;
+    descriptionInput.value = transaction.description;
 
     updatePreview();
 
@@ -506,13 +448,10 @@ function editTransaction(index){
     UPDATE TRANSACTION
 ==========================================================*/
 
-function updateTransaction(){
+async function updateTransaction(){
 
-    const amount =
-        Number(amountInput.value);
-
+    const amount = Number(amountInput.value);
     const taxRate = 0.10;
-
     const additionalRate = 0.05;
 
     const calculation =
@@ -522,48 +461,34 @@ function updateTransaction(){
             additionalRate
         );
 
-    transactions[editingIndex] = new Transaction({
+    const updated = new Transaction({
 
         id: transactions[editingIndex].id,
-
         date: dateInput.value,
-
         type: typeInput.value,
-
         category: categoryInput.value,
-
         account: accountInput.value,
-
         amount: amount,
-
         taxType: taxTypeInput.value,
-
         taxRate: taxRate,
-
         taxAmount: calculation.taxAmount,
-
         additionalTax: additionalTaxInput.value,
-
         additionalRate: additionalRate,
-
         additionalAmount: calculation.additionalAmount,
-
         netAmount: calculation.netAmount,
-
         description: descriptionInput.value,
-
         timestamp: transactions[editingIndex].timestamp
 
     });
 
+    transactions[editingIndex] = updated;
+
+    await updateInSheet(updated);
+
     editingIndex = -1;
 
-    saveStorage();
-
     renderTransactions();
-
     updateSummaryCards();
-
     closeModal();
 
 }
@@ -580,15 +505,10 @@ function searchTransactions() {
     const filtered = transactions.filter(transaction => {
 
         return (
-
             transaction.id.toLowerCase().includes(keyword) ||
-
             transaction.category.toLowerCase().includes(keyword) ||
-
             transaction.account.toLowerCase().includes(keyword) ||
-
             transaction.description.toLowerCase().includes(keyword)
-
         );
 
     });
@@ -605,27 +525,16 @@ function searchTransactions() {
 function filterTransactions() {
 
     const type = filterType.value;
-
     const category = filterCategory.value;
-
     const account = filterAccount.value;
 
     const filtered = transactions.filter(transaction => {
 
-        const matchType =
-            !type || transaction.type === type;
+        const matchType = !type || transaction.type === type;
+        const matchCategory = !category || transaction.category === category;
+        const matchAccount = !account || transaction.account === account;
 
-        const matchCategory =
-            !category || transaction.category === category;
-
-        const matchAccount =
-            !account || transaction.account === account;
-
-        return (
-            matchType &&
-            matchCategory &&
-            matchAccount
-        );
+        return (matchType && matchCategory && matchAccount);
 
     });
 
@@ -640,44 +549,13 @@ function filterTransactions() {
 
 function validateForm() {
 
-    if (!dateInput.value) {
-
-        alert("Date is required.");
-
-        return false;
-
-    }
-
-    if (!typeInput.value) {
-
-        alert("Type is required.");
-
-        return false;
-
-    }
-
-    if (!categoryInput.value) {
-
-        alert("Category is required.");
-
-        return false;
-
-    }
-
-    if (!accountInput.value) {
-
-        alert("Account is required.");
-
-        return false;
-
-    }
-
+    if (!dateInput.value) { alert("Date is required."); return false; }
+    if (!typeInput.value) { alert("Type is required."); return false; }
+    if (!categoryInput.value) { alert("Category is required."); return false; }
+    if (!accountInput.value) { alert("Account is required."); return false; }
     if (amountInput.value === "" || Number(amountInput.value) <= 0) {
-
         alert("Enter a valid amount.");
-
         return false;
-
     }
 
     return true;
@@ -689,20 +567,16 @@ function validateForm() {
     FORM SUBMIT
 ==========================================================*/
 
-form.addEventListener("submit", function (e) {
+form.addEventListener("submit", async function (e) {
 
     e.preventDefault();
 
     if (!validateForm()) return;
 
     if (editingIndex === -1) {
-
-        saveTransaction();
-
+        await saveTransaction();
     } else {
-
-        updateTransaction();
-
+        await updateTransaction();
     }
 
 });
@@ -713,19 +587,11 @@ form.addEventListener("submit", function (e) {
 ==========================================================*/
 
 btnNewTransaction.addEventListener("click", openModal);
-
 btnCloseModal.addEventListener("click", closeModal);
-
 btnCancel.addEventListener("click", closeModal);
 
 modal.addEventListener("click", function (e) {
-
-    if (e.target === modal) {
-
-        closeModal();
-
-    }
-
+    if (e.target === modal) closeModal();
 });
 
 
@@ -733,112 +599,47 @@ modal.addEventListener("click", function (e) {
     LIVE CALCULATION
 ==========================================================*/
 
-amountInput.addEventListener(
-    "input",
-    updatePreview
-);
+amountInput.addEventListener("input", updatePreview);
 
 
 /* ==========================================================
-    SEARCH
+    SEARCH / FILTERS
 ==========================================================*/
 
-searchInput.addEventListener(
-    "keyup",
-    searchTransactions
-);
+searchInput.addEventListener("keyup", searchTransactions);
+filterType.addEventListener("change", filterTransactions);
+filterCategory.addEventListener("change", filterTransactions);
+filterAccount.addEventListener("change", filterTransactions);
 
 
 /* ==========================================================
-    FILTERS
-==========================================================*/
-
-filterType.addEventListener(
-    "change",
-    filterTransactions
-);
-
-filterCategory.addEventListener(
-    "change",
-    filterTransactions
-);
-
-filterAccount.addEventListener(
-    "change",
-    filterTransactions
-);
-
-
-/* ==========================================================
-    LOAD SAMPLE DATA
+    LOAD SAMPLE DATA (dropdown options — unrelated to storage)
 ==========================================================*/
 
 function loadSampleLists() {
 
-    const categories = [
-
-        "Salary",
-
-        "Freelance",
-
-        "Food",
-
-        "Transportation",
-
-        "Bills",
-
-        "Shopping"
-
-    ];
+    const categories = ["Salary","Freelance","Food","Transportation","Bills","Shopping"];
 
     categories.forEach(item => {
-
-        categoryInput.innerHTML +=
-
-            `<option>${item}</option>`;
-
-        filterCategory.innerHTML +=
-
-            `<option>${item}</option>`;
-
+        categoryInput.innerHTML += `<option>${item}</option>`;
+        filterCategory.innerHTML += `<option>${item}</option>`;
     });
 
-    const accounts = [
-
-        "Cash",
-
-        "Bank",
-
-        "GCash"
-
-    ];
+    const accounts = ["Cash","Bank","GCash"];
 
     accounts.forEach(item => {
-
-        accountInput.innerHTML +=
-
-            `<option>${item}</option>`;
-
-        filterAccount.innerHTML +=
-
-            `<option>${item}</option>`;
-
+        accountInput.innerHTML += `<option>${item}</option>`;
+        filterAccount.innerHTML += `<option>${item}</option>`;
     });
 
     taxTypeInput.innerHTML += `
-
         <option>Income Tax</option>
-
         <option>VAT</option>
-
     `;
 
     additionalTaxInput.innerHTML += `
-
         <option>Service Charge</option>
-
         <option>Custom Tax</option>
-
     `;
 
 }
@@ -848,22 +649,18 @@ function loadSampleLists() {
     INITIALIZE
 ==========================================================*/
 
-function initializeTransactions() {
+async function initializeTransactions() {
 
     loadSampleLists();
 
-    loadStorage();
+    await loadFromSheet();
 
     renderTransactions();
-
     updateSummaryCards();
-
     updatePreview();
 
     dateInput.value =
-        new Date()
-            .toISOString()
-            .split("T")[0];
+        new Date().toISOString().split("T")[0];
 
 }
 
