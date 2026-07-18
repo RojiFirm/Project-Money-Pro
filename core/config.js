@@ -11,8 +11,8 @@
  * ------------------------------------------------------------
  */
 
-export const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-export const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+export const SUPABASE_URL = 'https://myjtbrlatkufwbecwljr.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_enJYTMxbIZ9ImEhTMsngoA_GV-MrYZ0';
 
 export const IS_CONFIGURED =
   !SUPABASE_URL.includes('YOUR-PROJECT-REF') &&
