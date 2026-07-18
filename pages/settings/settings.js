@@ -1,157 +1,54 @@
-/* ==========================================================
-    PROJECT MONEY PRO
-    Settings Module (dropdown list manager)
-==========================================================*/
+/* ============================================================
+   Money Pro — pages/settings/settings.js
+   ============================================================ */
+window.Pages = window.Pages || {};
+window.Pages.settings = (function () {
+  function renderCurrency() {
+    const sel = Utils.qs("#set-currency");
+    if (!sel) return; // page navigated away — listener still attached
+    const settings = window.Api.getSettings();
+    sel.innerHTML = window.MoneyProConfig.currencies
+      .map(c => `<option value="${c}" ${c === settings.currency ? "selected" : ""}>${c}</option>`).join("");
+    sel.onchange = () => window.Api.updateSettings({ currency: sel.value });
+  }
 
-/* Same Web App URL used in transactions.js — move both to
-   core/config.js once you're ready to share it across pages. */
-const API_URL = "https://script.google.com/macros/s/AKfycbyplFP6eG8LTocJyIHMLqXbXnmfVIiC6Jycu6hiRZQMbYSkrSpgxGxY3THuvoh027WydA/exec";
+  function exportBackup() {
+    const dump = window.Api.exportBackup();
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `moneypro-backup-${Utils.todayISO()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-let settings = []; // [{ type: "category", value: "Salary" }, ...]
+  function importBackup(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const dump = JSON.parse(reader.result);
+        window.Api.importBackup(dump);
+        alert("Backup imported.");
+      } catch (e) {
+        alert("That file doesn't look like a valid Money Pro backup.");
+      }
+    };
+    reader.readAsText(file);
+  }
 
-const cards = document.querySelectorAll(".settings-card");
-
-
-/* ==========================================================
-    LOAD SETTINGS FROM SHEET
-==========================================================*/
-
-async function loadSettings() {
-
-    const response = await fetch(`${API_URL}?resource=settings`);
-    settings = await response.json();
-
-    renderAllLists();
-
-}
-
-
-/* ==========================================================
-    RENDER
-==========================================================*/
-
-function renderAllLists() {
-
-    cards.forEach(card => {
-
-        const type = card.dataset.type;
-        const list = card.querySelector(".settings-list");
-
-        const items = settings.filter(s => s.type === type);
-
-        list.innerHTML = "";
-
-        if (items.length === 0) {
-            list.innerHTML = `<li class="empty">No items yet.</li>`;
-            return;
-        }
-
-        items.forEach(item => {
-
-            const li = document.createElement("li");
-
-            li.innerHTML = `
-                <span>${item.value}</span>
-                <button class="remove-btn">Remove</button>
-            `;
-
-            li.querySelector(".remove-btn")
-                .addEventListener("click", () => removeItem(type, item.value));
-
-            list.appendChild(li);
-
-        });
-
+  let bound = false;
+  function init() {
+    renderCurrency();
+    Utils.qs("#set-export").addEventListener("click", exportBackup);
+    Utils.qs("#set-import-file").addEventListener("change", e => {
+      if (e.target.files[0]) importBackup(e.target.files[0]);
     });
-
-}
-
-
-/* ==========================================================
-    ADD ITEM
-==========================================================*/
-
-async function addItem(type, value) {
-
-    // Optimistic update so the UI feels instant
-    settings.push({ type, value });
-    renderAllLists();
-
-    await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-            resource: "settings",
-            action: "add",
-            type: type,
-            value: value
-        })
+    Utils.qs("#set-reset").addEventListener("click", () => {
+      if (confirm("This replaces all current data with the starter demo data. Continue?")) window.Api.resetDemoData();
     });
+    if (!bound) { Utils.on("settings:changed", renderCurrency); bound = true; }
+  }
 
-}
-
-
-/* ==========================================================
-    REMOVE ITEM
-==========================================================*/
-
-async function removeItem(type, value) {
-
-    if (!confirm(`Remove "${value}"?`)) return;
-
-    settings = settings.filter(s => !(s.type === type && s.value === value));
-    renderAllLists();
-
-    await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-            resource: "settings",
-            action: "delete",
-            type: type,
-            value: value
-        })
-    });
-
-}
-
-
-/* ==========================================================
-    FORM EVENTS
-==========================================================*/
-
-cards.forEach(card => {
-
-    const type = card.dataset.type;
-    const form = card.querySelector(".add-form");
-    const input = card.querySelector(".add-input");
-
-    form.addEventListener("submit", async function (e) {
-
-        e.preventDefault();
-
-        const value = input.value.trim();
-        if (!value) return;
-
-        const alreadyExists = settings.some(
-            s => s.type === type && s.value.toLowerCase() === value.toLowerCase()
-        );
-
-        if (alreadyExists) {
-            alert("That item already exists.");
-            return;
-        }
-
-        await addItem(type, value);
-        input.value = "";
-
-    });
-
-});
-
-
-/* ==========================================================
-    INITIALIZE
-==========================================================*/
-
-loadSettings();
+  return { init };
+})();

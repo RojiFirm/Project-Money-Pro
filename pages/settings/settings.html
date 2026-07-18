@@ -1,70 +1,31 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settings - Project Money Pro</title>
-<link rel="stylesheet" href="settings.css">
-</head>
-<body>
+<div class="page-head">
+  <div>
+    <span class="page-eyebrow">Configure Money Pro</span>
+    <h1>Settings</h1>
+  </div>
+</div>
 
-  <div class="settings-page">
-
-    <header class="settings-header">
-      <h1>Settings</h1>
-      <p>Manage the dropdown lists used across Project Money Pro.</p>
-    </header>
-
-    <div class="settings-grid">
-
-      <section class="settings-card" data-type="category">
-        <h2>Categories</h2>
-
-        <form class="add-form">
-          <input type="text" class="add-input" placeholder="e.g. Groceries" required>
-          <button type="submit">Add</button>
-        </form>
-
-        <ul class="settings-list"></ul>
-      </section>
-
-      <section class="settings-card" data-type="account">
-        <h2>Accounts</h2>
-
-        <form class="add-form">
-          <input type="text" class="add-input" placeholder="e.g. Maya" required>
-          <button type="submit">Add</button>
-        </form>
-
-        <ul class="settings-list"></ul>
-      </section>
-
-      <section class="settings-card" data-type="taxType">
-        <h2>Tax Types</h2>
-
-        <form class="add-form">
-          <input type="text" class="add-input" placeholder="e.g. Withholding Tax" required>
-          <button type="submit">Add</button>
-        </form>
-
-        <ul class="settings-list"></ul>
-      </section>
-
-      <section class="settings-card" data-type="additionalTax">
-        <h2>Additional Tax Types</h2>
-
-        <form class="add-form">
-          <input type="text" class="add-input" placeholder="e.g. Local Tax" required>
-          <button type="submit">Add</button>
-        </form>
-
-        <ul class="settings-list"></ul>
-      </section>
-
+<div class="settings-grid">
+  <div class="card card-pad">
+    <h3 style="margin-bottom:14px;font-size:15px;">Preferences</h3>
+    <div class="field"><label>Currency</label>
+      <select id="set-currency"></select>
     </div>
-
   </div>
 
-  <script src="settings.js"></script>
-</body>
-</html>
+  <div class="card card-pad">
+    <h3 style="margin-bottom:6px;font-size:15px;">Database</h3>
+    <p class="settings-note">Money Pro stores everything locally in your browser. Export a backup any time, or point <code>core/database.js</code> at a Google Sheet later — see the comment at the top of that file.</p>
+    <div class="settings-actions">
+      <button class="btn" id="set-export">Export backup (.json)</button>
+      <label class="btn" for="set-import-file">Import backup</label>
+      <input type="file" id="set-import-file" accept="application/json" hidden>
+    </div>
+  </div>
+
+  <div class="card card-pad">
+    <h3 style="margin-bottom:6px;font-size:15px;">Reset</h3>
+    <p class="settings-note">Wipe accounts, assets, liabilities, transactions and transfers, and reload the starter demo data.</p>
+    <button class="btn btn-danger" id="set-reset">Reset to demo data</button>
+  </div>
+</div>

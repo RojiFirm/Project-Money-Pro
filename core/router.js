@@ -1,24 +1,69 @@
-const pages = {
+/* ============================================================
+   Money Pro — core/router.js
+   Tiny hash router. Reads window.MoneyProConfig.routes so it
+   never needs editing when a page is added — only config.js
+   changes. Fetches the page's .html fragment, injects its .css
+   once, loads its .js once, then calls PageModule.init(root).
+   ============================================================ */
+window.Router = (function () {
+  const routesByKey = {};
+  window.MoneyProConfig.routes.forEach(r => (routesByKey[r.key] = r));
+  const loadedCss = new Set();
+  const loadedJs = new Set();
+  const pageRoot = document.getElementById("page-root");
 
-    dashboard: "pages/dashboard/dashboard.html",
-    transactions: "pages/transactions/transactions.html",
-    transfer: "pages/transfer/transfer.html",
-    accounts: "pages/accounts/accounts.html",
-    liabilities: "pages/liabilities/liabilities.html",
-    assets: "pages/assets/assets.html",
-    settings: "pages/settings/settings.html"
+  function currentKey() {
+    const hash = (location.hash || "").replace(/^#\/?/, "");
+    return routesByKey[hash] ? hash : window.MoneyProConfig.defaultRoute;
+  }
 
-};
+  function loadCss(route) {
+    if (loadedCss.has(route.key)) return;
+    const href = route.path.replace(/\.html$/, ".css");
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+    loadedCss.add(route.key);
+  }
 
-async function loadPage(page){
+  function loadJs(route) {
+    return new Promise((resolve, reject) => {
+      if (loadedJs.has(route.key)) return resolve();
+      const script = document.createElement("script");
+      script.src = route.module;
+      script.onload = () => { loadedJs.add(route.key); resolve(); };
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
+  }
 
-    const response = await fetch(pages[page]);
+  async function render() {
+    const key = currentKey();
+    const route = routesByKey[key];
+    loadCss(route);
 
-    const html = await response.text();
+    const res = await fetch(route.path);
+    if (!res.ok) {
+      pageRoot.innerHTML = `<div class="empty-state">Couldn't load ${Utils.escapeHtml(route.label)}.</div>`;
+      return;
+    }
+    pageRoot.innerHTML = await res.text();
 
-    document.getElementById("content").innerHTML = html;
+    await loadJs(route);
+    const PageModule = window.Pages && window.Pages[key];
+    if (PageModule && typeof PageModule.init === "function") {
+      PageModule.init(pageRoot);
+    }
 
-    document.getElementById("page-title").textContent =
-        page.charAt(0).toUpperCase() + page.slice(1);
+    Utils.emit("route:changed", { key, route });
+  }
 
-}
+  function start() {
+    window.addEventListener("hashchange", render);
+    if (!location.hash) location.hash = "#/" + window.MoneyProConfig.defaultRoute;
+    render();
+  }
+
+  return { start, currentKey };
+})();

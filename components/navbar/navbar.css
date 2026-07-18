@@ -1,0 +1,15 @@
+#navbar-root{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 28px;background:var(--ink-900);
+}
+.nav-left{display:flex;flex-direction:column;gap:2px;}
+.nav-eyebrow{color:var(--text-dim);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;}
+.nav-left h2{font-size:19px;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.nav-avatar{
+  width:32px;height:32px;border-radius:50%;
+  border:1px solid var(--ink-line);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text-mid);transition:border-color .15s var(--ease), color .15s var(--ease);
+}
+.nav-avatar:hover{border-color:var(--brass);color:var(--brass-hi);}
