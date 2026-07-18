@@ -1,50 +1,16 @@
-/* ==========================================
-   Project Money PRO
-   Transaction Log
-========================================== */
-
-let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
-
-let editIndex = -1;
-
-/* ==========================================
-   Elements
-========================================== */
-
 const modal = document.getElementById("transactionModal");
+
+const btnNew = document.getElementById("btnNewTransaction");
+
 const form = document.getElementById("transactionForm");
 
-const addBtn = document.getElementById("addTransactionBtn");
-const closeBtn = document.getElementById("closeModal");
-const cancelBtn = document.getElementById("cancelBtn");
-
-const tbody = document.getElementById("transactionBody");
-
-const searchInput = document.getElementById("searchInput");
-const filterType = document.getElementById("filterType");
-
-/* ==========================================
-   Modal
-========================================== */
-
-addBtn.onclick = () => {
-
-    editIndex = -1;
-
-    form.reset();
-
-    document.getElementById("modalTitle").textContent =
-        "Add Transaction";
+btnNew.onclick = () => {
 
     modal.classList.remove("hidden");
 
-};
+}
 
-closeBtn.onclick = () => modal.classList.add("hidden");
-
-cancelBtn.onclick = () => modal.classList.add("hidden");
-
-window.onclick = (e)=>{
+modal.onclick = (e)=>{
 
     if(e.target===modal){
 
@@ -54,239 +20,62 @@ window.onclick = (e)=>{
 
 }
 
-/* ==========================================
-   Helpers
-========================================== */
+let transactionNumber = 1;
 
 function generateID(){
 
-    return "TRX-" +
-        String(Date.now()).slice(-6);
+    return "TRX-" + String(transactionNumber++)
+        .padStart(6,"0");
 
 }
 
-function timestamp(){
-
-    return new Date().toLocaleString();
-
-}
-
-function saveStorage(){
-
-    localStorage.setItem(
-        "transactions",
-        JSON.stringify(transactions)
-    );
-
-}
-
-/* ==========================================
-   Render Table
-========================================== */
-
-function renderTable(){
-
-    tbody.innerHTML="";
-
-    let keyword = searchInput.value.toLowerCase();
-
-    let typeFilter = filterType.value;
-
-    transactions.forEach((item,index)=>{
-
-        if(typeFilter!="All" &&
-            item.type!==typeFilter){
-
-            return;
-
-        }
-
-        let text = JSON.stringify(item).toLowerCase();
-
-        if(!text.includes(keyword)){
-
-            return;
-
-        }
-
-        tbody.innerHTML += `
-        <tr>
-
-            <td>${item.id}</td>
-
-            <td>${item.date}</td>
-
-            <td>${item.type}</td>
-
-            <td>${item.category}</td>
-
-            <td>${item.account}</td>
-
-            <td>₱ ${Number(item.amount).toLocaleString()}</td>
-
-            <td>${item.taxType}</td>
-
-            <td>${item.description}</td>
-
-            <td>
-
-                <button
-                    class="action-btn edit-btn"
-                    onclick="editTransaction(${index})">
-
-                    Edit
-
-                </button>
-
-                <button
-                    class="action-btn delete-btn"
-                    onclick="deleteTransaction(${index})">
-
-                    Delete
-
-                </button>
-
-            </td>
-
-        </tr>
-        `;
-
-    });
-
-}
-
-/* ==========================================
-   Save
-========================================== */
-
-form.addEventListener("submit",(e)=>{
+form.addEventListener("submit",function(e){
 
     e.preventDefault();
 
-    let data={
+    const amount = Number(
+        document.getElementById("amount").value
+    );
 
-        id:
-            editIndex==-1
-            ?generateID()
-            :transactions[editIndex].id,
+    const taxRate = 0.10;
 
-        date:
-            document.getElementById("date").value,
+    const additionalRate = 0.05;
 
-        type:
-            document.getElementById("type").value,
+    const tax = amount * taxRate;
 
-        category:
-            document.getElementById("category").value,
+    const additional = amount * additionalRate;
 
-        account:
-            document.getElementById("account").value,
+    const net = amount - tax - additional;
 
-        amount:
-            document.getElementById("amount").value,
+    document.getElementById("taxAmount").textContent =
+        "₱" + tax.toFixed(2);
 
-        taxType:
-            document.getElementById("taxType").value,
+    document.getElementById("additionalTaxAmount").textContent =
+        "₱" + additional.toFixed(2);
 
-        additionalTax:
-            document.getElementById("additionalTax").value,
+    document.getElementById("netAmount").textContent =
+        "₱" + net.toFixed(2);
 
-        additionalTaxAmount:
-            document.getElementById("additionalTaxAmount").value,
+    const table = document.getElementById("transactionBody");
 
-        description:
-            document.getElementById("description").value,
+    const row = table.insertRow();
 
-        timestamp:
-            timestamp()
+    row.innerHTML = `
 
-    };
+        <td>${generateID()}</td>
+        <td>${document.getElementById("date").value}</td>
+        <td>${document.getElementById("type").value}</td>
+        <td>${document.getElementById("category").value}</td>
+        <td>${document.getElementById("account").value}</td>
+        <td>₱${amount.toFixed(2)}</td>
+        <td>₱${tax.toFixed(2)}</td>
+        <td>₱${net.toFixed(2)}</td>
+        <td>${document.getElementById("description").value}</td>
 
-    if(editIndex==-1){
-
-        transactions.push(data);
-
-    }
-
-    else{
-
-        transactions[editIndex]=data;
-
-    }
-
-    saveStorage();
-
-    renderTable();
-
-    modal.classList.add("hidden");
+    `;
 
     form.reset();
 
+    modal.classList.add("hidden");
+
 });
-
-/* ==========================================
-   Edit
-========================================== */
-
-function editTransaction(index){
-
-    editIndex=index;
-
-    let item=transactions[index];
-
-    document.getElementById("modalTitle")
-        .textContent="Edit Transaction";
-
-    document.getElementById("date").value=item.date;
-
-    document.getElementById("type").value=item.type;
-
-    document.getElementById("category").value=item.category;
-
-    document.getElementById("account").value=item.account;
-
-    document.getElementById("amount").value=item.amount;
-
-    document.getElementById("taxType").value=item.taxType;
-
-    document.getElementById("additionalTax").value=item.additionalTax;
-
-    document.getElementById("additionalTaxAmount").value=item.additionalTaxAmount;
-
-    document.getElementById("description").value=item.description;
-
-    modal.classList.remove("hidden");
-
-}
-
-/* ==========================================
-   Delete
-========================================== */
-
-function deleteTransaction(index){
-
-    if(confirm("Delete this transaction?")){
-
-        transactions.splice(index,1);
-
-        saveStorage();
-
-        renderTable();
-
-    }
-
-}
-
-/* ==========================================
-   Search
-========================================== */
-
-searchInput.addEventListener("keyup",renderTable);
-
-filterType.addEventListener("change",renderTable);
-
-/* ==========================================
-   Start
-========================================== */
-
-renderTable();
